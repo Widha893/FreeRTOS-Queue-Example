@@ -63,3 +63,5 @@ The dummySensorHandler task uses zero CPU time while it's waiting for data. Its 
 
 - Production note:
     - For production use avoid `malloc()`/`free()` inside tight loops; use a fixed object pool instead.
+
+- Please refer to the FreeRTOS API reference for function uses.
