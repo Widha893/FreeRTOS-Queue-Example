@@ -35,3 +35,31 @@ The queue acts as a buffer. If the dummySensor task produces data slightly faste
 
 ### 4. Efficiency (Blocking): 
 The dummySensorHandler task uses zero CPU time while it's waiting for data. Its call to xQueueReceive puts the task into a "sleeping" state until the FreeRTOS scheduler is notified that data has arrived, at which point the task is "woken up."
+
+## 📝 Important notes & tips
+
+- Platform: this example targets ESP32 (Arduino/PlatformIO). High-resolution timing uses `esp_timer_get_time()` (microseconds) on ESP32 — that API is not portable to other platforms. If you run on a different port, you may see different timing/behavior.
+
+- Timing & measurement:
+    - The project now logs end-to-end latency in microseconds (producer timestamp -> consumer timestamp). Be aware of what you timestamp:
+        - If you timestamp before `xQueueSend()` the measured latency includes any time the producer blocked in `xQueueSend()` waiting for queue space.
+        - To measure only post-enqueue → dequeue latency, capture the timestamp after `xQueueSend()` returns and place it into the queued object (use pointer-queue or pool).
+
+- Queue behavior:
+    - A FreeRTOS queue is full when `uxQueueMessagesWaiting(queue) == queue length` (or `uxQueueSpacesAvailable(queue) == 0`).
+    - `xQueueSend(..., blockTime)` will block the calling task up to `blockTime` ticks if the queue is full; with `blockTime == 0` the call returns immediately with failure when full.
+
+- Scheduling and priorities:
+    - Scheduling is controlled by task priorities, blocking calls, and (on ESP32) core affinity. If you want the consumer to process immediately when data arrives, give the consumer a higher priority or use direct task notifications to wake it.
+    - Use `vTaskDelayUntil()` for steady periodic sampling, not `vTaskDelay()` if you need a strict period.
+
+- Debugging tips:
+    - Print `uxQueueMessagesWaiting()` / `uxQueueSpacesAvailable()` to inspect queue occupancy.
+    - Print send-blocking time (time before/after `xQueueSend`) to see if the producer is blocked by a full queue.
+    - Minimize `Serial.println()` when measuring latency — serial I/O can affect scheduling and timing.
+
+- Memory and allocation:
+    - The example uses value-copy queue items by default. If you need to update queued contents after enqueue (e.g. set a post-send timestamp), either switch to a pointer-queue and manage a small pool, or record both pre/post timestamps locally in the producer and send them together.
+
+- Production note:
+    - For production use avoid `malloc()`/`free()` inside tight loops; use a fixed object pool instead.
